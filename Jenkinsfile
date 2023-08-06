@@ -38,7 +38,7 @@ pipeline {
                     def secretYaml = secretTemplate.replaceAll('\\${MONGO_USERNAME}', usernameBase64).replaceAll('\\${MONGO_PASSWORD}', passwordBase64).replaceAll('\\${MONGO_URL}', urlBase64)
                     writeFile file: 'secret.yaml', text: secretYaml
                     sh 'kubectl apply -f secret.yaml'
-                    sh 'kubectl create secret tls my-tls-secret --cert=/k8s/secrets/cert/cert.crt --key=/k8s/secrets/cert/cert.key'
+                    sh 'kubectl create secret tls certificate --cert=/k8s/secrets/cert/cert.pem --key=/k8s/secrets/cert/privkey.pem'
                 }
             }
         }
