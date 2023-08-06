@@ -1,10 +1,13 @@
 pipeline {
     agent any
-
+    
     stages {
         stage('Auth GCP') {
             steps {
-                sh "/google-cloud-sdk/bin/gcloud auth activate-service-account ${GCP_SERVICE_ACCOUNT} --key-file=${GCP_CREDENTIALS} --project=${GCP_PROJECT}"
+                sh '''
+                    export PATH=$PATH:/google-cloud-sdk/bin
+                    /google-cloud-sdk/bin/gcloud auth activate-service-account ${GCP_SERVICE_ACCOUNT} --key-file=${GCP_CREDENTIALS} --project=${GCP_PROJECT}
+                '''
             }
         }
         
@@ -21,39 +24,65 @@ pipeline {
             }
         }
 
+        stage('Set Kubernetes Context') {
+            steps {
+                sh '''
+                    export PATH=$PATH:/google-cloud-sdk/bin
+                    gcloud container clusters get-credentials ${CLUSTER_NAME} --zone ${CLUSTER_ZONE} --project ${GCP_PROJECT}
+                '''
+            }
+        }
+
         stage('Create Secrets') {
             steps {
                 script {
                     def secretTemplate = readFile '/pipeline_data/k8s/secrets/mongo-credentials-template.yaml'
+                    def urlBase64
                     withCredentials([string(credentialsId: 'url_mongo', variable: 'MONGO_URL')]) {
-                        def urlBase64 = sh(script: "echo -n \$MONGO_URL | base64", returnStdout: true).trim()
+                        urlBase64 = sh(script: "echo -n \$MONGO_URL | base64", returnStdout: true).trim()
                     }
-                    def usernameBase64 = sh(script: "echo -n '${params.MONGO_USERNAME}' | base64", returnStdout: true).trim()
+                    def usernameBase64
+                    withCredentials([string(credentialsId: 'mongo_username', variable: 'MONGO_USERNAME')]) {
+                        usernameBase64 = sh(script: "echo -n \$MONGO_USERNAME | base64", returnStdout: true).trim()
+                    }
+                    def passwordBase64
                     withCredentials([string(credentialsId: 'passwd_mongo', variable: 'MONGO_PASSWORD')]) {
-                        def passwordBase64 = sh(script: "echo -n \$MONGO_PASSWORD | base64", returnStdout: true).trim()
+                        passwordBase64 = sh(script: "echo -n \$MONGO_PASSWORD | base64", returnStdout: true).trim()
                     }
-                    def secretYaml = secretTemplate.replaceAll('\\${MONGO_USERNAME}', usernameBase64).replaceAll('\\${MONGO_PASSWORD}', passwordBase64).replaceAll('\\${MONGO_URL}', urlBase64)
+                    def secretYaml = secretTemplate.replace('${MONGO_USERNAME}', usernameBase64).replace('${MONGO_PASSWORD}', passwordBase64).replace('${MONGO_URL}', urlBase64)
                     writeFile file: 'secret.yaml', text: secretYaml
-                    sh 'kubectl apply -f secret.yaml'
-                    sh 'kubectl create secret tls certificate --cert=/pipeline_data/k8s/secrets/cert/cert.pem --key=/pipeline_data/k8s/secrets/cert/privkey.pem'
+
+                    sh '''
+                        export PATH=$PATH:/google-cloud-sdk/bin
+                        cat secret.yaml
+                        kubectl config current-context
+                        kubectl config view
+                        kubectl apply -f secret.yaml
+                        kubectl create secret tls certificate --cert=/certs/cert.pem --key=/certs/privkey.pem
+                    '''
                 }
             }
         }
 
         stage('Deploy Nginx Ingress Controller') {
             steps {
-                sh "kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.0.0/deploy/static/provider/cloud/deploy.yaml"
+                sh '''
+                    export PATH=$PATH:/google-cloud-sdk/bin
+                    kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.0.0/deploy/static/provider/cloud/deploy.yaml
+                '''                
             }
         }
 
         stage('Deploy to Kubernetes') {
             steps {
-                sh "/google-cloud-sdk/bin/gcloud container clusters get-credentials ${GKE_CLUSTER} --zone ${GKE_ZONE}"
-                sh "kubectl apply -f /pipeline_data/k8s/deployments/app-deployment --namespace=${K8S_NAMESPACE}"
-                sh "kubectl apply -f /pipeline_data/k8s/deployments/app-service --namespace=${K8S_NAMESPACE}"
-                sh "kubectl apply -f /pipeline_data/k8s/deployments/app-ingress --namespace=${K8S_NAMESPACE}"
-                sh "kubectl apply -f /pipeline_data/k8s/deployments/mongo-deployment --namespace=${K8S_NAMESPACE}"
-                sh "kubectl apply -f /pipeline_data/k8s/deployments/mongo-service --namespace=${K8S_NAMESPACE}"
+                sh '''
+                    export PATH=$PATH:/google-cloud-sdk/bin
+                    kubectl apply -f /pipeline_data/k8s/deployments/app-deployment --namespace=${K8S_NAMESPACE}
+                    kubectl apply -f /pipeline_data/k8s/deployments/app-service --namespace=${K8S_NAMESPACE}
+                    kubectl apply -f /pipeline_data/k8s/deployments/app-ingress --namespace=${K8S_NAMESPACE}
+                    kubectl apply -f /pipeline_data/k8s/deployments/mongo-deployment --namespace=${K8S_NAMESPACE}
+                    kubectl apply -f /pipeline_data/k8s/deployments/mongo-service --namespace=${K8S_NAMESPACE}
+                '''                     
             }
         }
     }
