@@ -4,7 +4,7 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                git url: 'https://github.com/demarchi3353/avaliacao-infra.git', branch: 'main'
+                checkout scm
             }
         }
 
