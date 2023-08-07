@@ -6,10 +6,10 @@ metadata:
 spec:
   tls:
   - hosts:
-    - dalibomba.com
+    - test.girafamimosa.com.br
     secretName: certificate
   rules:
-  - host: dalibomba.com
+  - host: test.girafamimosa.com.br
     http:
       paths:
       - path: /

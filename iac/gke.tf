@@ -16,7 +16,7 @@ resource "google_container_node_pool" "primary_pool" {
   name       = "pool-teste-softdesign"
   location   = "us-central1-a"
   cluster    = google_container_cluster.standard_cluster.name
-  node_count = 2
+  node_count = 3
 
   node_config {
     preemptible  = false

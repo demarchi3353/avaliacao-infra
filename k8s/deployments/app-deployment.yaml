@@ -17,11 +17,11 @@ spec:
     spec:
       containers:
       - name: app
-        image: gcr.io/teste-softdesign/app:v1
+        image: us-central1-docker.pkg.dev/teste-softdesign/teste-softdesign/app:v1
         resources:
           limits:
-            cpu: "1"
-            memory: "1Gi"
+            cpu: "0.2"
+            memory: "100Mi"
         ports:
         - containerPort: 3000
         env:

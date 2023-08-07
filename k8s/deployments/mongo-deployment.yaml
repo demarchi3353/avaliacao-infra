@@ -21,8 +21,8 @@ spec:
         image: mongo:4.4
         resources:
           limits:
-            cpu: "1"
-            memory: "1Gi"
+            cpu: "0.2"
+            memory: "100Mi"
         ports:
         - containerPort: 27017
         env:
